@@ -1,0 +1,283 @@
+---
+title: "Projeto Final"
+author: "Luiz Antônio"
+date: "13/10/2020"
+output: html_document
+---
+
+# Projeto Final - Netflix Movies and TV Shows {.tabset}
+
+
+## Introdução
+
+Atualmente, as plataformas de streaming são um percentual importante das atividades de lazer de um individuo. Existindo inúmeras plataformas, o público se divide em escolher apenas uma ou manter mais, pois, cada uma oferece alguns aspectos que se sobressaem.  
+
+O Conjunto de dados utilizado neste projeto contém informações sobre os conteúdos disponíveis no catálogo Netflix, categorizados como "Movie" e "Tv Show". Com as informações disponíveis do DataSet, pretendo quantificar e classificar alguns dos aspectos que atraem o público e verificar se a plataforma Netflix os satisfazem.    
+
+Aspectos como:  
+1. Disponibilização de filmes/Tv Show recentemente lançados  
+2. Variedade de filmes/Tv Show disponíveis por categoria  
+3. Busca de filmes/Tv Show por elenco  
+4. Tempo mínimo de conteúdo disponível  
+5. Variedade de histórias com base na sinopse.  
+
+Classificados em:  
+1. Ótimo  
+2. Bom  
+3. Razoável  
+4. Ruim  
+5. Péssimo  
+
+## Pacotes Requeridos
+Para o projeto, todos os pacotes escolhidos são para organizar e manipular os dados.
+
+```{r Pacotes, echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library("stringr") #Manipulação de Texto (String)
+library("dplyr") #Manipulação e Transformação de Dados
+library("tidyr") #Formatar/Formalizar os Dados
+library("tm") #Mineração de Texto
+library("wordcloud") #Criação de Nuvem de Palavras
+```
+
+## Preparação dos Dados
+Neste projeto, utilizei de dados abertos da plataforma Kaggle. Dados estes que foram coletados através da Fixable(Um mecanismo de busca Netflix de terceiros).
+O conjunto de dados consiste em programas de TV e filmes disponíveis na netflix que foram adicionados no período de 2008 a 2020.
+
+Com posse do dataset, no meio diretório, obtido pelo link: [DataSet](https://www.kaggle.com/shivamb/netflix-shows/download)
+Utilizo o comando
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+netflix <- read.csv("netflix_titles.csv", header = T,strip.white = T, na.strings = "", quote = "\"", sep = ",")
+```
+para importar o dataset.
+
+Em seguida, utilizo o comando 
+```{r echo=TRUE,results='hide',message=FALSE, warning=FALSE, paged.print=FALSE}
+str(netflix)
+```
+para visualizar a estrutura do DataFrame.
+
+Nisto percebo que se trata de um DataFrame com `r nrow(netflix)` linhas e `r ncol(netflix)` colunas. Noto que algumas alterações possam ser feitas para melhorar minha visualização.
+Para prosseguir, irei anular algumas colunas que serão inúteis para o andamento do projeto.
+Colunas a serem retiradas : show_id e rating.
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+netflix <- netflix[-c(1,9)]
+```
+
+
+Outras alterações a serem feitas são:
+Transformar a coluna "type" em um Fator, alterar a coluna "date_added" para apenas o ano de adesão dos filmes/programas de Tv a plataforma e deixar os anos do dataframe em tipo numérico.
+
+
+```{r echo = T, results='hide'}
+#Transformando "type" em fator
+netflix$type <- as.factor(netflix$type)
+
+#Alterando "date_added"
+netflix <- netflix %>% separate(col = "date_added", into = c("month_added", "year_added"), sep = ",", fill = "right")
+netflix <- netflix[-6]
+#Deixando "year_added" e "release_year" em Numerico
+netflix$year_added <- as.numeric(netflix$year_added)
+netflix$release_year <- as.numeric(netflix$release_year)
+```
+Para realizar a alteração da coluna "date_added", separo-a em duas colunas resultantes "month_added" e "year_added" e depois removo a coluna "month_added" pois, será inutilizada no decorrer do projeto.
+
+
+
+Por último, verifico a existência de linhas duplicadas.
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+which(duplicated(netflix))
+```
+Com o resultado, confirmo a existência de uma linha duplicada e a removo.
+```{r echo = TRUE, results = 'hide',message=FALSE, warning=FALSE, paged.print=FALSE}
+netflix <- netflix[-2125,]
+```
+
+
+Depois da preparação o DataSet Resulta em: 
+```{r echo=FALSE,results='hold', message=FALSE, warning=FALSE, paged.print=FALSE}
+str(netflix)
+```
+Um Dataframe com `r nrow(netflix) ` linhas e  `r ncol(netflix) ` colunas  
+
+
+## Analise Exploratória dos Dados
+A partir de agora, irei manipular os dados do Dataframe, para cada aspecto comentado anterior, a fim de obter os resultados para verificação e analise.    
+**1. Inclusão de Filmes/Tv Show Recentemente Lançados**  
+Para obtenção do dado, iremos buscar a frequência do quando de tempo levou para os conteúdos ficarem disponível na plataforma.  
+
+Primeiro procuro a diferença entre a data de inclusão para a data de lançamento. Considerando a inexistência da plataforma como streaming ate 2007, limito a diferença para valores maiores-iguais a 0 e menores-iguais a 13.
+Obs: O resultado trazia alguns números negativos, porém, um filme não pode ser adicionado a plataforma antes de lançado.
+``` {r echo = T , results = 'hide'}
+x <- netflix$year_added - netflix$release_year
+x <- x[x>=0 & x<=13]
+```
+Obtendo esses valores, gero um gráfico que me permita melhor análise através do código.
+```{r echo=TRUE}
+hist(x, col = "blue", xlab = "Tempo para Inclusão de Conteúdo", main = "Margem de Tempo", xlim = c(0, 15), ylab = "Frequência")
+```  
+Com isso, posso enxergar que o grande percentual de conteúdo se concentra em menos de 10 anos de diferença.
+Agora, tiro a média de tempo para inclusão de um conteúdo no catálogo para poder classifica-lo.
+```{r echo=TRUE}
+mean(x,na.rm = T)
+```
+Obtendo essa média, classifico esse aspecto em **Bom**, já que devesse ser considerado o prazo de liberação da cinematografia pós-produção.  
+  
+**2. Variedades de Filmes/Tv Show Disponíveis por Categoria**  
+Os conteúdos se apresentam em mais de uma categoria, por isso meu primeiro passo será separar as categorias de cada conteúdo de modo a quantifica-los.   
+
+Primeiro procuro saber o máximo de categorias que um filme se encontra, para isso uso o código abaixo.
+```{r echo=TRUE}
+max(str_count(netflix$listed_in,","))
+```
+Após interpretar o resultado, pudesse perceber que o máximo de categorias de um filme são 3, simplesmente por que existe duas separações.
+Por Exemplo: ''' International Movies**,**Sci-Fi & Fantasy**,** Thrillers '''
+Agora que tenho um valor de categorias posso dividi-las através do código a seguir realizo essa ação.
+```{r echo=T,results='hide'}
+netflix <- netflix %>% separate(col = "listed_in", into = c("category_1", "category_2", "category_3"), sep = ",", fill = "right")
+```
+```{r echo=FALSE}
+head(netflix[c("category_1","category_2","category_3")])
+```  
+Seguindo, realizo três etapas, são elas: obter um vetor com todas as categorias, transformar o vetor em fator para obter os levels e tranformar o levels em caracteres para manipulação. Durante o caminho, percebo a existência de espaços desnecessários, então os removo.
+```{r}
+categoria <- c(netflix$category_1,netflix$category_2,netflix$category_3)
+categoria <- str_trim(categoria)
+categoria <- as.factor(categoria)
+categoria <- levels(categoria)
+```
+Resultando em `r length(categoria)` categorias.  
+
+A partir disso, irei quantificar quantos filmes há por categoria.
+Utilizo a Função abaixo para contabilizar.
+```{r echo = T, results='hide'}
+contagem <- function(categorias,dataset){
+for(i in 1 : length(categoria))
+  if(i == 1){
+    x <- c(nrow(netflix %>% filter(category_1 == categoria[i])))
+    y <- c(nrow(netflix %>% filter(category_2 == categoria[i])))
+    z <- c(nrow(netflix %>% filter(category_3 == categoria[i])))
+  }else{
+    x <- c(x,nrow(netflix %>% filter(category_1 == categoria[i])))
+    y <- c(y,nrow(netflix %>% filter(category_2 == categoria[i])))
+    z <- c(z,nrow(netflix %>% filter(category_3 == categoria[i])))
+  }
+  
+  return(x + y + z)
+}
+```
+Junto os vetores de categorias com a contagem de filmes, resultando em:
+```{r}
+quantidade <- contagem(categoria, netflix)
+resultado <- data.frame(categoria,quantidade)
+head(resultado)
+```  
+
+Gero um gráfico para visualização
+```{r}
+barplot(resultado$quantidade, main = "Variedade de Conteúdo Por Categoria", cex.names = 0.5, xlim = c(0,80))
+```  
+
+Embora exista uma boa variedade de categorias, é perceptível algumas categorias com bem mais conteúdos disponíveis que outras. Fazendo uma análise, a maioria das categorias se concentram a mais de 300 filmes em contra-peso existe uma grade margem de diferença entre os de menores quantidades e os de maiores. Olhando estes pontos, classifico este aspecto como **Razoável**.  
+
+**3. Tempo de Conteúdo Disponível**  
+Um dos aspectos que o usuário de streaming buscam correspondem ao quanto de conteúdo ele tem para aproveitar. Claro que podemos considerar apenas a quantidade de produto disponível sendo `r nrow(netflix[netflix$type == "Movie",])` filmes e `r nrow(netflix[netflix$type == "TV Show",])` Programas de Tv. Mas existe outro ponto a ser discutido, o tempo que levará para um usuário consiga terminar todo o catálogo.
+Duas totalidades de tempos será buscada, tempo disponível de filmes e tempo disponíveis de programas de tv.
+Irei Criar duas funções, a função abaixo para obter o tempo em horas de filmes.
+```{r}
+Tempo_Horas_Filmes <- function(dataset){
+  aux <- as.numeric(str_trim(str_remove_all(subset(dataset[,"duration"], dataset$type == "Movie"), "[a-z]")))
+  horas <- sum(aux)/60
+  return(horas)
+}
+```
+que resulta em `r round(Tempo_Horas_Filmes(netflix),1)` horas.  
+
+Agora, a função para obter o tempo em horas dos programas de tv. Para os programas de tv a duração informada refere-se ao número de temporadas, sem considerar numero de episódios ou duração deles. Por isso, o valor usado para determinar o tempo será o mínimo que a plataforma programas costumam a oferecer, numero de 8 episódios e 20 min de duração.
+```{r}
+Tempo_Horas_TvShow <- function(dataset){
+  aux <- as.numeric(str_trim(str_remove_all(subset(dataset[,"duration"], dataset$type == "TV Show"), "[:upper:][:lower:]*")))
+  horas_min <- sum(aux*8*20)/60
+  return(horas_min)
+}
+```
+que resulta em `r round(Tempo_Horas_TvShow(netflix),1)` horas.  
+Possuindo esses dois valores, somados dão `r round((round(Tempo_Horas_Filmes(netflix),1) + round(Tempo_Horas_TvShow(netflix),1))/24,0)` dias corridos de conteúdo para ser visto.
+
+Para classificar esse aspecto, irei considerar os dois aspectos anteriores. A quantidade de tempo de conteúdo disponível é ótimo ainda mais se considerarmos que mais e mais conteúdos são incluídos no catálogo. Porém, como visto que a maioria dos filmes se concentram em algumas poucas categorias, e o público deve se atentar as suas preferências, o tempo de duração disponível decai. Fazendo assim decair também a classificação desse aspecto de ótimo para **Bom**.  
+
+**4. Variedade de Temas com base na descrição **  
+A plataforma netflix possui uma ferramenta de busca, no qual o usuário digita uma palavra e aparecem os conteúdos que a correspondem, seja pelo título ou sinopse do conteúdo. Sabendo que geralmente as sinopses possuem uma palavra-chave que correspondem ao tema do conteúdo, irei explorar essas sinopses, a fim de verificar a variedade de temas disponíveis.  
+
+Utilizando do código abaixo para gerar uma nuvem de palavras com os temas.
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+texto <- paste(netflix$description, collapse = " ")
+#Convertendo para o Formato Corpus
+VS  <- VectorSource(texto)
+corpus <- Corpus(VS)
+
+#Formatando o Texto
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords('english'))
+#Gerando Nuvem
+wordcloud(corpus, min.freq = 3, max.words = 200, random.order = FALSE, rot.per = 0.20
+          ,colors = brewer.pal(6, "Dark2"))
+```  
+
+Embora, algumas das palavras registradas na nuvem não consigam definir com nitidez o tema do conteúdo, outras são bastante significativas para a busca pelo usuário. Palavras como *family*, *young* , *scholl*, *love*, *mysterious*, *documentary*, *adventure*, *drama* e outras expressam temas que são de procura popular. Fazendo um analise a fim de classificar esse aspecto, sou direto a fazer uma ligação com as categorias já que os temas em si são vinculados com as categorias propostas. Sendo assim, levanto o mesmo argumento que para o aspecto **2** , onde existe sim um bom número de temas, porém, alguns são mais concentrados que outros, deixando assim um deficit de conteúdo para alguns. Desse modo, este aspecto será classificado em **Razoável**.  
+
+**5. Procura de Filmes/Tv Show por Elenco**  
+Além de busca por título e temas, a Netflix permite fazer a busca por atores/atrizes. É comum, o usuário querer assistir conteúdos no qual seu ator/atriz favorito participou, por isso busco nesses aspectos verificar não só a quantidade de atores presentes por todo catálogo, mas também os conteúdos que os mesmos participaram.  
+
+Igualmente as categorias, um filme possui mais de um ator/atriz. Só que diferentemente da categoria, ficaria inviável separar em novas colunas já que existe elenco com `r max(str_count(netflix$cast,","), na.rm = T)`. Então, criei a função abaixo para fazer essa separação e trazer em um vetor.
+```{r echo=TRUE, results='hide'}
+ver_Elenco <- function(dataset){
+  nome_elenco <- c()
+  
+  #Removendo NA's
+  dataset <- dataset[-which(is.na(dataset))]
+  #Removendo NA's
+  
+  for(i in 1: length(dataset)){
+    aux <- c(0)
+    for(j in 1 : str_length(dataset[i])){
+      if(substr(dataset[i],j,j) == ","){
+        aux  <- c(aux, j)
+      }
+    }
+    aux <- c(aux,str_length(dataset[i]) + 1)
+    for(h in 1 : (length(aux) - 1)){
+      nome_elenco <- c(nome_elenco,substr(dataset[i], aux[h]+1, aux[h+1]-1))
+    }
+  }
+  
+  return(nome_elenco)
+}
+Elenco <- ver_Elenco(netflix$cast)
+```  
+Após isso, removo os espaços em brancos desnecessários e transformo o vetor em um dataframe para melhor manipula-lo.
+```{r echo=TRUE, results='hide'}
+Elenco <- str_trim(Elenco)
+Elenco <- data.frame(Elenco)
+```
+Agora, finalmente, utilizo do código abaixo para obter a frequência dos atores e gerar um gráfico.
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+Elenco <- Elenco %>% group_by(Elenco) %>% summarise(frequencia = n())
+barplot(Elenco$frequencia, main = "Participação de Ator/Atriz", cex.names = 0.5)
+```  
+
+O gráfico está apresentando a frequência de `r nrow(Elenco)` Atores/Atrizes.
+Para classificar este aspecto, analiso que a grande concentração se encontra abaixo de 10 filmes/Tv Show's. Porém, os picos apresentados no gráfico referisse aos atores/atrizes "estrelas", e que mesmo pequenas participações chegam a ser consideradas, e os que ficam na base podem representar atores/atrizes secundários ou não tão famosos. Desse modo, classifico esse aspecto em **Bom**, já que, mesmo com esses pontos levantados ainda existem um baixo nível de participação geral, ainda mais se considerarmos todos os "estrelas" existentes.
+
+## Conclusões
+Para finalizar, trago esta tabela no qual irá medir a classificação da plataforma de streaming netflix, baseada na classificação dos aspectos antes verificados.
+
+![Tabela de Classificação.](C:/Users/luiza/Desktop/Tabela de Classificação.png)
+Observando o total de pontos acumulados, podemos agora definir a classificação geral Netflix com base na escala a seguir.
+![Escala de Classificação.](C:/Users/luiza/Desktop/Escala de Classificação.png)
+
+Logo, a plataforma de streaming Netflix, cobre alguns dos interesses dos usuários de maneira **Razoável**.
+Claro que, este trabalho pode ser continuado e melhor classificado. Para isto, serão necessários novos dados a serem disponibilizados e alguns outros aspectos a serem verificados.
+
